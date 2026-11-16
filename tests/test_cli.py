@@ -207,3 +207,8 @@ def test_compare_reports(project: Path) -> None:
     c = project / "c.json"
     c.write_text(json.dumps(other))
     assert runner.invoke(app, ["compare-reports", str(a), str(c)]).exit_code == 1
+
+
+def test_export_reports_missing_weights(project: Path) -> None:
+    res = runner.invoke(app, ["export", "nope.pt"])
+    assert res.exit_code == 1 and ("not found" in res.output or "not installed" in res.output)

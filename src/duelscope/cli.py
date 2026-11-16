@@ -359,5 +359,28 @@ def compare_reports(
     console.print(t)
 
 
+@app.command()
+def export(
+    weights: Path = typer.Argument(..., help="Ultralytics .pt weights to export."),
+    imgsz: int = typer.Option(640, help="Export image size."),
+    half: bool = typer.Option(False, "--half", help="Export FP16 (needs a CUDA device)."),
+) -> None:
+    """Export Ultralytics weights to ONNX and print the command that compares both."""
+    try:
+        from ultralytics import YOLO
+    except ImportError as exc:
+        raise fail(
+            "Ultralytics is not installed. Run: pip install 'duelscope[ultralytics]'"
+        ) from exc
+    if not weights.is_file():
+        raise fail(f"Weights file '{weights}' not found. Check the path.")
+    try:
+        onnx_path = YOLO(str(weights)).export(format="onnx", imgsz=imgsz, half=half)
+    except Exception as exc:
+        raise fail(f"Export failed: {exc}. FP16 export requires a CUDA GPU.") from exc
+    console.print(f"[green]Exported[/green] {onnx_path}")
+    console.print(f"Compare them:  duelscope run --data <data.yaml> --models {weights} {onnx_path}")
+
+
 if __name__ == "__main__":
     cli()

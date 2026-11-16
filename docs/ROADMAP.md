@@ -14,7 +14,7 @@
 
 - [x] `duelscope compare-reports a.json b.json`
 - [ ] Side-by-side video benchmark mode
-- [ ] ONNX/TensorRT export-and-compare helper
+- [x] ONNX export helper (`duelscope export`); TensorRT still open
 - [ ] FP32 vs FP16 vs INT8 report section
 - [ ] Match `model.val()` preprocessing as an opt-in Ultralytics mode
 

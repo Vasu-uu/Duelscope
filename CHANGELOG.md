@@ -10,4 +10,5 @@ First release.
 - Speed benchmark with hardware capture and CPU fallback.
 - Failure-case galleries (per model, cross-model, per class).
 - Reports: `results.json`, `report.md`, self-contained `report.html`, plain-language insights.
-- CLI: `run`, `check-data`, `report`, `list-adapters`, `doctor`, `init`, `demo-data`, `compare-reports`.
+- CLI: `run`, `check-data`, `report`, `list-adapters`, `doctor`, `init`, `demo-data`, `compare-reports`, `export` (ONNX).
+- ONNX adapter verified on a real yolov8n export: mAP50 0.901 vs 0.901 for the `.pt` on the 8-image coco8 sample (mAP50-95 0.705 vs 0.696).

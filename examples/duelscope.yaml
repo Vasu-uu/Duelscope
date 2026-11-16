@@ -1,0 +1,11 @@
+data: demo_dataset
+split: val
+models:
+  - custom:examples/custom_adapter.py:EmptyDetector
+out: report
+max_images: 8
+speed:
+  images: 4
+  iters: 10
+gallery:
+  k: 4

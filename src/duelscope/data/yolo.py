@@ -195,6 +195,5 @@ def load_yolo(path: str | Path, split: str = "val") -> Dataset:
         records.append(ImageRecord(i, img, w, h, gt))
     if not records:
         raise DatasetError(f"No readable images found for split '{key}' in '{yaml_path}'.")
-    return Dataset(
-        yaml_path.parent.name or "dataset", key, names, records, yaml_path.parent, issues
-    )
+    name = str(cfg.get("name") or yaml_path.parent.name or "dataset")
+    return Dataset(name, key, names, records, yaml_path.parent, issues)

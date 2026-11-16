@@ -40,7 +40,8 @@ class Oracle(Detector):
                 continue
             w, h = Image.open(p).size
             lab = Path(str(p).replace("images", "labels")).with_suffix(".txt")
-            rows = np.array([l.split() for l in lab.read_text().splitlines() if l.strip()], dtype=float)
+            lines = [ln.split() for ln in lab.read_text().splitlines() if ln.strip()]
+            rows = np.array(lines, dtype=float)
             rows = rows.reshape(-1, 5)
             c, cx, cy, bw, bh = rows.T
             boxes = np.stack([(cx - bw / 2) * w, (cy - bh / 2) * h,
@@ -188,3 +189,21 @@ def test_run_errors_name_the_problem(project: Path) -> None:
         app, ["run", "--data", "ds", "--models", "custom:missing.py:X", "--no-speed"]
     )
     assert res.exit_code == 1 and "not found" in res.output
+
+
+def test_compare_reports(project: Path) -> None:
+    cfgp = _write_cfg(project)
+    assert runner.invoke(app, ["run", "--config", str(cfgp), "--no-gallery"]).exit_code == 0
+    a = project / "rep" / "results.json"
+    data = json.loads(a.read_text())
+    data["models"][0]["accuracy"]["map5095"] -= 0.05
+    b = project / "b.json"
+    b.write_text(json.dumps(data))
+    res = runner.invoke(app, ["compare-reports", str(b), str(a)])
+    assert res.exit_code == 0 and "+5.0" in res.output
+    other = json.loads(a.read_text())
+    for m in other["models"]:
+        m["name"] += "_x"
+    c = project / "c.json"
+    c.write_text(json.dumps(other))
+    assert runner.invoke(app, ["compare-reports", str(a), str(c)]).exit_code == 1

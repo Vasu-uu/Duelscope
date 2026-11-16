@@ -321,5 +321,43 @@ def demo_data(
     console.print(f"[green]Created[/green] {yaml_path}  (classes: square, wide, tall)")
 
 
+@app.command("compare-reports")
+def compare_reports(
+    a: Path = typer.Argument(..., help="Baseline results.json."),
+    b: Path = typer.Argument(..., help="New results.json."),
+) -> None:
+    """Compare two runs: metric deltas (b minus a) for models present in both."""
+    from duelscope.report import load_results
+
+    try:
+        ra, rb = load_results(a), load_results(b)
+    except ValueError as exc:
+        raise fail(str(exc)) from exc
+    ma = {m["name"]: m for m in ra["models"]}
+    shared = [m for m in rb["models"] if m["name"] in ma]
+    if not shared:
+        raise fail("The two reports share no model names, so there is nothing to compare.")
+    if ra["dataset"]["hash"] != rb["dataset"]["hash"]:
+        console.print(
+            "[yellow]WARNING:[/yellow] the datasets differ; deltas mix data and model changes."
+        )
+    t = Table(title=f"{b.name} minus {a.name}")
+    for col in ("Model", "mAP50-95", "mAP50", "p50 ms"):
+        t.add_column(col, justify="left" if col == "Model" else "right")
+    for m in shared:
+        o = ma[m["name"]]
+        d = [
+            (m["accuracy"]["map5095"] - o["accuracy"]["map5095"]) * 100,
+            (m["accuracy"]["map50"] - o["accuracy"]["map50"]) * 100,
+        ]
+        row = [m["name"], f"{d[0]:+.1f}", f"{d[1]:+.1f}"]
+        if m.get("speed") and o.get("speed"):
+            row.append(f"{m['speed']['latency_ms']['p50'] - o['speed']['latency_ms']['p50']:+.1f}")
+        else:
+            row.append("-")
+        t.add_row(*row)
+    console.print(t)
+
+
 if __name__ == "__main__":
     cli()

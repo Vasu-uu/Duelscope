@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Duelscope artefacts (never commit data, weights or generated reports)
+.duelscope_cache/
+report/
+reports/
+runs/
+datasets/
+*.pt
+*.pth
+*.onnx
+*.engine
+*.safetensors
+*.mp4
+*.avi
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Allow the small curated sample under docs/
+!docs/sample/
+!docs/images/

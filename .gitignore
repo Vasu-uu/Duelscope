@@ -13,10 +13,10 @@ htmlcov/
 
 # Duelscope artefacts (never commit data, weights or generated reports)
 .duelscope_cache/
-report/
-reports/
-runs/
-datasets/
+/report/
+/reports/
+/runs/
+/datasets/
 *.pt
 *.pth
 *.onnx
@@ -34,4 +34,5 @@ Thumbs.db
 # Allow the small curated sample under docs/
 !docs/sample/
 !docs/images/
-weights/
+/weights/
+.claude/

@@ -39,4 +39,4 @@ class MockDetector(Detector):
     def predict(self, images: list[ImageInput]) -> list[Detections]:
         self.calls += len(images)
         self.last_timing = {"preprocess": 0.1, "inference": 1.0, "postprocess": 0.1}
-        return [self._fn(Path(str(i))) for i in images]
+        return [self._fn(i if isinstance(i, Path) else Path("<ndarray>")) for i in images]

@@ -1,0 +1,42 @@
+{
+  "sections": [
+    "insights",
+    "leaderboard",
+    "speed",
+    "classes",
+    "pr",
+    "errors",
+    "gallery",
+    "hardware"
+  ],
+  "leaderboard_columns": [
+    "Model",
+    "mAP50-95",
+    "mAP50",
+    "mAP S",
+    "mAP M",
+    "mAP L",
+    "Precision",
+    "Recall",
+    "F1",
+    "p50 ms",
+    "p99 ms",
+    "FPS (bs 1)",
+    "Params (M)",
+    "Size (MB)",
+    "GPU peak MB"
+  ],
+  "markdown_headings": [
+    "## Summary",
+    "## Key findings",
+    "## Charts",
+    "## Failure cases",
+    "## Hardware"
+  ],
+  "charts": [
+    "classes.png",
+    "errors.png",
+    "pr.png",
+    "speed.png"
+  ]
+}

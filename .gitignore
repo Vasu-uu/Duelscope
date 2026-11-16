@@ -34,3 +34,4 @@ Thumbs.db
 # Allow the small curated sample under docs/
 !docs/sample/
 !docs/images/
+weights/

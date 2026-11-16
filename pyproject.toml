@@ -35,7 +35,7 @@ dependencies = [
 
 [project.optional-dependencies]
 ultralytics = ["ultralytics>=8.3"]
-onnx = ["onnxruntime>=1.16", "opencv-python-headless>=4.8"]
+onnx = ["onnxruntime>=1.16"]
 torchvision = ["torch>=2.1", "torchvision>=0.16"]
 all = ["duelscope[ultralytics,onnx,torchvision]"]
 dev = ["pytest>=8", "pytest-cov>=5", "ruff>=0.5", "build>=1.0"]
@@ -71,6 +71,7 @@ ignore = ["B008"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+pythonpath = ["."]
 markers = [
     "gpu: test requires a CUDA GPU (skipped when none is present)",
     "ultralytics: test requires Ultralytics weights (skipped when unavailable)",

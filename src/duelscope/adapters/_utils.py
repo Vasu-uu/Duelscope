@@ -5,6 +5,8 @@ from __future__ import annotations
 import numpy as np
 from PIL import Image
 
+from duelscope.geometry import box_iou
+
 
 def letterbox(img: np.ndarray, size: int) -> tuple[np.ndarray, float, tuple[float, float]]:
     """Resize keeping aspect ratio and pad to size x size. Returns (image, ratio, (padx, pady))."""
@@ -16,19 +18,6 @@ def letterbox(img: np.ndarray, size: int) -> tuple[np.ndarray, float, tuple[floa
     px, py = (size - nw) // 2, (size - nh) // 2
     out[py : py + nh, px : px + nw] = resized
     return out, r, (float(px), float(py))
-
-
-def box_iou(a: np.ndarray, b: np.ndarray) -> np.ndarray:
-    """Pairwise IoU between (N,4) and (M,4) xyxy boxes."""
-    if len(a) == 0 or len(b) == 0:
-        return np.zeros((len(a), len(b)), dtype=np.float32)
-    area_a = (a[:, 2] - a[:, 0]) * (a[:, 3] - a[:, 1])
-    area_b = (b[:, 2] - b[:, 0]) * (b[:, 3] - b[:, 1])
-    lt = np.maximum(a[:, None, :2], b[None, :, :2])
-    rb = np.minimum(a[:, None, 2:], b[None, :, 2:])
-    wh = np.clip(rb - lt, 0, None)
-    inter = wh[..., 0] * wh[..., 1]
-    return inter / np.maximum(area_a[:, None] + area_b[None] - inter, 1e-9)
 
 
 def nms(boxes: np.ndarray, scores: np.ndarray, iou_thr: float) -> np.ndarray:

@@ -2,14 +2,19 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import typer
 from rich.console import Console
+from rich.progress import BarColumn, Progress, TaskProgressColumn, TextColumn, TimeElapsedColumn
 from rich.table import Table
 
 from duelscope import __version__
+from duelscope.adapters import AdapterError, available_adapters
+from duelscope.config import SAMPLE_CONFIG, ConfigError, build_config, load_config
 from duelscope.data import DatasetError, load_dataset, summarize
+from duelscope.doctor import FAIL, OK, run_checks
 
 app = typer.Typer(
     name="duelscope",
@@ -39,6 +44,31 @@ def fail(message: str) -> typer.Exit:
     """Print a red error and return an Exit(1) to raise."""
     console.print(f"[bold red]Error:[/bold red] {message}")
     return typer.Exit(1)
+
+
+def expand_models_args(argv: list[str]) -> list[str]:
+    """Turn `--models a b c` into `--models a --models b --models c` (values stop at a flag)."""
+    out: list[str] = []
+    i = 0
+    while i < len(argv):
+        out.append(argv[i])
+        if argv[i] == "--models":
+            i += 1
+            first = True
+            while i < len(argv) and not argv[i].startswith("--"):
+                if not first:
+                    out.append("--models")
+                out.append(argv[i])
+                first = False
+                i += 1
+            continue
+        i += 1
+    return out
+
+
+def cli() -> None:
+    """Console-script entry point (adds space-separated --models support)."""
+    app(args=expand_models_args(sys.argv[1:]))
 
 
 @app.command("check-data")
@@ -93,5 +123,203 @@ def check_data(
         raise typer.Exit(2)
 
 
+def _summary_table(results: dict) -> Table:
+    t = Table(title="Results (sorted by mAP50-95)")
+    for col in ("Model", "mAP50-95", "mAP50", "Precision", "Recall", "p50 ms", "FPS", "Params (M)"):
+        t.add_column(col, justify="left" if col == "Model" else "right")
+    for m in sorted(results["models"], key=lambda m: -m["accuracy"]["map5095"]):
+        a, s, p = m["accuracy"], m.get("speed"), m["metadata"].get("params")
+        t.add_row(
+            m["name"],
+            f"{a['map5095'] * 100:.1f}",
+            f"{a['map50'] * 100:.1f}",
+            f"{a['precision'] * 100:.1f}",
+            f"{a['recall'] * 100:.1f}",
+            f"{s['latency_ms']['p50']:.1f}" if s else "-",
+            f"{s['fps_bs1']:.1f}" if s else "-",
+            f"{p / 1e6:.2f}" if p else "-",
+        )
+    return t
+
+
+@app.command()
+def run(
+    config: Path | None = typer.Option(
+        None, "--config", help="YAML config (see 'duelscope init')."
+    ),
+    data: Path | None = typer.Option(
+        None, "--data", help="Dataset path (YOLO yaml/folder or COCO json)."
+    ),
+    models: list[str] | None = typer.Option(
+        None, "--models", help="Model specs: yolov8n.pt a.onnx torchvision:name custom:f.py:Cls"
+    ),
+    out: Path | None = typer.Option(None, "--out", help="Output folder (default: report)."),
+    split: str | None = typer.Option(None, help="Dataset split (YOLO)."),
+    fmt: str | None = typer.Option(None, "--format", help="yolo | coco | auto."),
+    images_dir: Path | None = typer.Option(None, help="Image folder for COCO files."),
+    device: str | None = typer.Option(None, help="cpu | cuda | auto."),
+    imgsz: int | None = typer.Option(None, help="Inference image size."),
+    conf: float | None = typer.Option(None, help="Threshold for galleries/error analysis."),
+    iou: float | None = typer.Option(None, help="NMS IoU threshold."),
+    batch: int | None = typer.Option(None, help="Inference batch size."),
+    max_images: int | None = typer.Option(None, help="Use at most N images (quick smoke run)."),
+    seed: int | None = typer.Option(None, help="Random seed."),
+    no_cache: bool = typer.Option(False, "--no-cache", help="Ignore and do not write the cache."),
+    no_speed: bool = typer.Option(False, "--no-speed", help="Skip the speed benchmark."),
+    no_gallery: bool = typer.Option(False, "--no-gallery", help="Skip failure galleries."),
+) -> None:
+    """Compare detectors on a dataset and write results.json, report.md and report.html."""
+    from duelscope.pipeline import run_comparison
+    from duelscope.report import build_report
+
+    try:
+        values = load_config(config) if config else {}
+        overrides = {
+            "data": data,
+            "models": list(models) if models else None,
+            "out": out,
+            "split": split,
+            "format": fmt,
+            "images_dir": images_dir,
+            "device": device,
+            "imgsz": imgsz,
+            "conf": conf,
+            "iou": iou,
+            "batch": batch,
+            "max_images": max_images,
+            "seed": seed,
+        }
+        values.update({k: v for k, v in overrides.items() if v is not None})
+        if no_cache:
+            values["cache"] = False
+        if no_speed:
+            values["speed"] = {**values.get("speed", {}), "enabled": False}
+        if no_gallery:
+            values["gallery"] = {**values.get("gallery", {}), "enabled": False}
+        for need in ("data", "models"):
+            if not values.get(need):
+                raise ConfigError(
+                    f"Missing '{need}'. Pass --{need} on the command line or set it in a config "
+                    "file (create one with 'duelscope init')."
+                )
+        cfg = build_config(values)
+    except ConfigError as exc:
+        raise fail(str(exc)) from exc
+
+    progress = Progress(
+        TextColumn("[bold blue]{task.description}"),
+        BarColumn(),
+        TaskProgressColumn(),
+        TimeElapsedColumn(),
+        console=console,
+        transient=True,
+    )
+    task = progress.add_task("starting", total=1)
+
+    def on_progress(stage: str, done: int, total: int) -> None:
+        progress.update(task, description=stage, completed=done, total=max(total, 1))
+
+    try:
+        with progress:
+            results = run_comparison(cfg, on_progress)
+    except (DatasetError, AdapterError) as exc:
+        raise fail(str(exc)) from exc
+    paths = build_report(results, cfg.out)
+    for m in results["models"]:
+        for w in m["warnings"]:
+            console.print(f"[yellow]WARNING:[/yellow] {w}")
+    console.print(_summary_table(results))
+    for line in results["insights"][:6]:
+        console.print(f"  - {line}")
+    console.print(f"\n[green]Report written:[/green] {paths['html']}")
+    console.print(f"Also: {paths['markdown']} and {paths['json']}")
+
+
+@app.command()
+def report(
+    results: Path = typer.Option(..., "--from", help="results.json from a previous run."),
+    out: Path | None = typer.Option(
+        None, "--out", help="Output folder (default: next to the JSON)."
+    ),
+) -> None:
+    """Rebuild report.html and report.md from results.json without rerunning inference."""
+    from duelscope.report import build_report, load_results
+
+    try:
+        data = load_results(results)
+    except ValueError as exc:
+        raise fail(str(exc)) from exc
+    paths = build_report(data, out or results.parent, gallery_root=results.parent)
+    console.print(f"[green]Report rebuilt:[/green] {paths['html']}")
+
+
+@app.command("list-adapters")
+def list_adapters() -> None:
+    """Show available detector adapters and how to use them."""
+    usage = {
+        "ultralytics": "yolov8n.pt | ultralytics:yolo11s.pt",
+        "onnx": "model.onnx | onnx:path/model.onnx",
+        "torchvision": "torchvision:fasterrcnn_resnet50_fpn",
+        "custom": "custom:path/to/file.py:ClassName",
+    }
+    t = Table(title="Detector adapters")
+    for col in ("Adapter", "Origin", "Example model spec"):
+        t.add_column(col)
+    for name, origin in available_adapters().items():
+        t.add_row(name, origin, usage.get(name, f"{name}:<argument>"))
+    console.print(t)
+    console.print("Third parties can add adapters via the 'duelscope.adapters' entry-point group.")
+
+
+@app.command()
+def doctor() -> None:
+    """Check Python, CUDA and optional extras, and print fixes for anything missing."""
+    t = Table(title="Duelscope doctor")
+    for col in ("Check", "Status", "Detail"):
+        t.add_column(col)
+    checks = run_checks()
+    for c in checks:
+        colour = {"ok": "green", "warn": "yellow", "fail": "red"}[c.status]
+        t.add_row(c.name, f"[{colour}]{c.status.upper()}[/{colour}]", c.detail)
+    console.print(t)
+    fixes = [c for c in checks if c.status != OK and c.fix]
+    for c in fixes:
+        console.print(f"[bold]{c.name}:[/bold] {c.fix}")
+    if not fixes:
+        console.print("[green]Everything looks good.[/green]")
+    if any(c.status == FAIL for c in checks):
+        raise typer.Exit(1)
+
+
+@app.command()
+def init(
+    path: Path = typer.Option(Path("duelscope.yaml"), help="Where to write the sample config."),
+    force: bool = typer.Option(False, "--force", help="Overwrite an existing file."),
+) -> None:
+    """Write a commented sample configuration file."""
+    if path.exists() and not force:
+        raise fail(
+            f"'{path}' already exists. Use --force to overwrite or --path to choose another."
+        )
+    path.write_text(SAMPLE_CONFIG)
+    console.print(
+        f"[green]Wrote[/green] {path}. Edit 'data' and 'models', then run: "
+        f"duelscope run --config {path}"
+    )
+
+
+@app.command("demo-data")
+def demo_data(
+    out: Path = typer.Argument(Path("demo_dataset"), help="Folder to create."),
+    images: int = typer.Option(12, help="Number of synthetic images."),
+    seed: int = typer.Option(0),
+) -> None:
+    """Create a tiny synthetic YOLO dataset for trying Duelscope without downloads."""
+    from duelscope.synthetic import make_yolo_dataset
+
+    yaml_path = make_yolo_dataset(out, n_images=images, seed=seed)
+    console.print(f"[green]Created[/green] {yaml_path}  (classes: square, wide, tall)")
+
+
 if __name__ == "__main__":
-    app()
+    cli()

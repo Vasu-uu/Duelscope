@@ -41,7 +41,7 @@ all = ["duelscope[ultralytics,onnx,torchvision]"]
 dev = ["pytest>=8", "pytest-cov>=5", "ruff>=0.5", "build>=1.0"]
 
 [project.scripts]
-duelscope = "duelscope.cli:app"
+duelscope = "duelscope.cli:cli"
 
 [project.entry-points."duelscope.adapters"]
 

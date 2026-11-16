@@ -96,3 +96,49 @@ def build_config(values: dict) -> RunConfig:
         raise ConfigError(
             "Invalid configuration:\n" + "\n".join(lines) + "\nSee 'duelscope init' for a sample."
         ) from exc
+
+
+SAMPLE_CONFIG = """\
+# Duelscope configuration. Run with:  duelscope run --config duelscope.yaml
+# Relative paths are resolved from this file's folder.
+
+data: path/to/dataset        # YOLO data.yaml (or its folder) or a COCO .json file
+split: val                   # YOLO split to evaluate: train | val | test
+format: auto                 # auto | yolo | coco
+# images_dir: path/to/images # only needed for COCO files whose images are elsewhere
+
+models:                      # Ultralytics weights, .onnx files, torchvision or custom adapters
+  - yolov8n.pt
+  - yolov8s.pt
+  # - model.onnx
+  # - torchvision:fasterrcnn_resnet50_fpn
+  # - custom:examples/custom_adapter.py:MyDetector
+
+out: report                  # output folder (report.html, report.md, results.json)
+
+imgsz: 640                   # inference size
+conf: 0.25                   # threshold for galleries and error analysis
+iou: 0.6                     # NMS IoU threshold
+batch: 8
+device: auto                 # auto | cpu | cuda
+max_images: null             # set e.g. 20 for a quick smoke run
+seed: 0
+cache: true                  # reuse predictions from .duelscope_cache/
+
+# class_map:                 # map model class names to dataset class names when they differ
+#   car: vehicle
+
+speed:
+  enabled: true
+  images: 32                 # fixed image subset used for timing
+  warmup: 5
+  iters: 30
+  batch_sizes: [1, 8]
+
+gallery:
+  enabled: true
+  k: 6                       # images per gallery view
+  thumb_px: 480
+  quality: 70
+  per_class_k: 2
+"""

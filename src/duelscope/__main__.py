@@ -1,4 +1,4 @@
-from duelscope.cli import app
+from duelscope.cli import cli
 
 if __name__ == "__main__":
-    app()
+    cli()

@@ -11,6 +11,7 @@ from duelscope.adapters.base import (
     Detector,
     DetectorConfig,
     ImageInput,
+    free_gpu,
     resolve_device,
 )
 from duelscope.types import Detections
@@ -65,6 +66,10 @@ class UltralyticsDetector(Detector):
         if self.weights_path is None:  # downloaded into the working directory by Ultralytics
             cand = Path(Path(self.weights).name)
             self.weights_path = cand if cand.is_file() else None
+
+    def close(self) -> None:
+        self._model = None
+        free_gpu()
 
     def predict(self, images: list[ImageInput]) -> list[Detections]:
         self.load()

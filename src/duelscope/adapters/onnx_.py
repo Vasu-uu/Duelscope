@@ -84,6 +84,9 @@ class OnnxDetector(Detector):
             except (ValueError, SyntaxError, KeyError):
                 pass
 
+    def close(self) -> None:
+        self._sess = None
+
     def _kind(self, out_shape: tuple) -> str:
         if self.decoder != "auto":
             return self.decoder

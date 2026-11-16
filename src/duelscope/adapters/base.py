@@ -45,6 +45,20 @@ def resolve_device(device: str) -> str:
     return device
 
 
+def free_gpu() -> None:
+    """Run garbage collection and release cached CUDA memory when torch is present."""
+    import gc
+
+    gc.collect()
+    try:
+        import torch
+
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    except ImportError:
+        pass
+
+
 def load_rgb(image: ImageInput) -> np.ndarray:
     """Load an image path or pass through an RGB uint8 HxWx3 array."""
     if isinstance(image, np.ndarray):
@@ -96,6 +110,9 @@ class Detector(ABC):
     @abstractmethod
     def load(self) -> None:
         """Load weights onto the chosen device. Must be idempotent."""
+
+    def close(self) -> None:  # noqa: B027
+        """Release the model so memory can be re-measured. Default: nothing to release."""
 
     @abstractmethod
     def predict(self, images: list[ImageInput]) -> list[Detections]:

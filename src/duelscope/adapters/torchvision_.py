@@ -12,6 +12,7 @@ from duelscope.adapters.base import (
     Detector,
     DetectorConfig,
     ImageInput,
+    free_gpu,
     load_rgb,
     resolve_device,
 )
@@ -100,6 +101,10 @@ class TorchvisionDetector(Detector):
             fn = Path(getattr(getattr(det, _FAMILIES[self.model_name]).DEFAULT, "url", "")).name
             cand = Path(torch.hub.get_dir()) / "checkpoints" / fn
             self.weights_path = cand if cand.is_file() else None
+
+    def close(self) -> None:
+        self._model = None
+        free_gpu()
 
     def predict(self, images: list[ImageInput]) -> list[Detections]:
         self.load()

@@ -7,6 +7,8 @@ import json
 from html import escape
 from pathlib import Path
 
+from duelscope.report.logo import MARK_SVG, favicon_data_uri
+
 CSS = """
 :root{--bg:#f6f8fa;--card:#fff;--ink:#24292f;--mute:#57606a;--line:#d0d7de;--acc:#0072B2;
 --good:#1a7f37;--warn:#9a6700}
@@ -17,6 +19,9 @@ font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
 main{max-width:1120px;margin:0 auto;padding:24px 16px 64px}
 h1{margin:0 0 4px;font-size:26px}h2{font-size:19px;margin:0 0 12px}
 .sub{color:var(--mute);margin:0 0 16px}
+.brand{display:flex;align-items:center;gap:12px;margin:0 0 4px}
+.brand svg{width:44px;height:44px;flex:none}
+.brand h1{margin:0}
 nav{display:flex;flex-wrap:wrap;gap:6px 16px;margin:0 0 20px;font-size:14px}
 nav a{color:var(--acc);text-decoration:none}
 section.card{background:var(--card);border:1px solid var(--line);border-radius:10px;
@@ -213,6 +218,37 @@ def _errors_table(models: list[dict]) -> str:
     )
 
 
+def _quant_table(rows: list[dict]) -> str:
+    def f(v: float | None, fmt: str) -> str:
+        return "-" if v is None else fmt.format(v)
+
+    body = "".join(
+        f"<tr><td>{escape(r['name'])}</td><td>{escape(r['precision'].upper())}</td>"
+        f"<td>{r['map5095'] * 100:.1f}</td><td>{r['d_map5095']:+.1f}</td>"
+        f"<td>{r['map50'] * 100:.1f}</td><td>{r['d_map50']:+.1f}</td>"
+        f"<td>{f(r['p50_ms'], '{:.1f}')}</td><td>{f(r['speedup'], '{:.2f}x')}</td>"
+        f"<td>{f(r['size_mb'], '{:.1f}')}</td><td>{f(r['size_ratio'], '{:.1f}x')}</td></tr>"
+        for r in rows
+    )
+    heads = (
+        "Variant",
+        "Precision",
+        "mAP50-95",
+        "Delta",
+        "mAP50",
+        "Delta",
+        "p50 ms",
+        "Speedup",
+        "Size MB",
+        "Smaller",
+    )
+    head = "".join(f"<th>{h}</th>" for h in heads)
+    return (
+        f"<table><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table>"
+        '<p class="sub">Deltas and ratios are relative to the FP32 variant.</p>'
+    )
+
+
 def _hardware(hw: dict) -> str:
     gpu = hw.get("gpu")
     items = {
@@ -236,6 +272,13 @@ def _hardware(hw: dict) -> str:
         + "".join(f"<dt>{escape(k)}</dt><dd>{escape(str(v))}</dd>" for k, v in items.items())
         + "</dl>"
     )
+
+
+def _quant_section(results: dict) -> list[tuple[str, str, str]]:
+    rows = results.get("quantisation")
+    if not rows:
+        return []
+    return [("quantisation", "Quantisation: FP32 vs FP16 vs INT8", _quant_table(rows))]
 
 
 def render_html(results: dict, charts: dict[str, bytes | None], gallery_root: Path) -> str:
@@ -262,6 +305,7 @@ def render_html(results: dict, charts: dict[str, bytes | None], gallery_root: Pa
             "Error taxonomy",
             _chart(charts.get("errors"), "error taxonomy") + _errors_table(models),
         ),
+        *_quant_section(results),
         ("gallery", "Failure-case gallery", _gallery(results.get("gallery"), gallery_root, imgs)),
         (
             "hardware",
@@ -278,8 +322,9 @@ def render_html(results: dict, charts: dict[str, bytes | None], gallery_root: Pa
     return (
         '<!doctype html><html lang="en"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
+        f'<link rel="icon" href="{favicon_data_uri()}">'
         f"<title>{escape(title)}</title><style>{CSS}</style></head><body><main>"
-        f"<h1>{escape(title)}</h1>"
+        f'<div class="brand">{MARK_SVG}<h1>{escape(title)}</h1></div>'
         f'<p class="sub">{ds["images"]} images, {ds["boxes"]} boxes, {len(ds["classes"])} classes '
         f"(split {escape(ds['split'])}) | {len(models)} models | Duelscope "
         f"{escape(results['duelscope_version'])} | {escape(results['created'])}</p>"

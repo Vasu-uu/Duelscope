@@ -77,7 +77,8 @@ def test_results_structure(run) -> None:
 def test_html_is_self_contained(run) -> None:
     _, paths, _ = run
     html = paths["html"].read_text(encoding="utf-8")
-    assert not re.search(r"<script[^>]+src=|<link[^>]+href=|https?://|@import", html)
+    bare = re.sub(r'xmlns="[^"]+"', "", html)  # namespace URIs are not network requests
+    assert not re.search(r'<script[^>]+src=|<link[^>]+href="(?!data:)|https?://|@import', bare)
     assert html.count("data:image/png;base64,") >= 3 and "data:image/jpeg;base64," in html
     assert "good" in html and "weak" in html and "sortable" in html
     assert paths["html"].stat().st_size < 3_000_000

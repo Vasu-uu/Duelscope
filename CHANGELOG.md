@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.0
+
+- `video-bench`: side-by-side video benchmark (latency, FPS, detection count, flicker, tiled output video).
+- `quant-compare`: FP32/FP16/INT8 ONNX variants with a quantisation section in the report; INT8 keeps the detection head in float.
+- `export`: Ultralytics to ONNX helper.
+- Project logo, favicon and logo in the HTML report.
+- CI actions updated; ONNX adapter verified on a real export.
+
 ## 0.1.0
 
 First release.

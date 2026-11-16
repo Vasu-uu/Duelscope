@@ -1,0 +1,42 @@
+"""The Duelscope logo: a scope reticle framing two duelling bounding boxes."""
+
+from __future__ import annotations
+
+import base64
+
+MARK_SVG = (
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" '
+    'aria-label="Duelscope logo">'
+    '<circle cx="128" cy="128" r="124" fill="#0f2a43"/>'
+    '<circle cx="128" cy="128" r="96" fill="none" stroke="#ffffff" stroke-width="9" '
+    'opacity="0.92"/>'
+    '<g stroke="#ffffff" stroke-width="9" stroke-linecap="round" opacity="0.92">'
+    '<path d="M128 14v34M128 208v34M14 128h34M208 128h34"/></g>'
+    '<rect x="78" y="90" width="84" height="70" rx="6" fill="none" stroke="#56B4E9" '
+    'stroke-width="9"/>'
+    '<rect x="100" y="112" width="84" height="70" rx="6" fill="none" stroke="#E69F00" '
+    'stroke-width="9" stroke-dasharray="22 12"/>'
+    '<circle cx="128" cy="128" r="5" fill="#ffffff"/>'
+    "</svg>"
+)
+
+WORDMARK_SVG = (
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 256" role="img" '
+    'aria-label="Duelscope">'
+    + MARK_SVG.replace(
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" '
+        'role="img" aria-label="Duelscope logo">',
+        "<g>",
+    ).replace("</svg>", "</g>")
+    + '<text x="276" y="150" font-family="Segoe UI, Helvetica, Arial, sans-serif" '
+    'font-size="104" font-weight="700" fill="#0f2a43">Duel<tspan fill="#0072B2">scope</tspan>'
+    "</text>"
+    '<text x="280" y="196" font-family="Segoe UI, Helvetica, Arial, sans-serif" '
+    'font-size="26" fill="#57606a">compare object detectors on your own hardware</text>'
+    "</svg>"
+)
+
+
+def favicon_data_uri() -> str:
+    """The mark as a data: URI for use as a favicon."""
+    return "data:image/svg+xml;base64," + base64.b64encode(MARK_SVG.encode()).decode()

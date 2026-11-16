@@ -41,6 +41,21 @@ def render_markdown(results: dict, chart_files: dict[str, str]) -> str:
     warns = [w for m in models for w in m.get("warnings", [])]
     if warns:
         lines += ["", "## Warnings", ""] + [f"- {w}" for w in warns]
+    q = results.get("quantisation")
+    if q:
+        lines += [
+            "",
+            "## Quantisation",
+            "",
+            "| Variant | Precision | mAP50-95 | Delta | p50 ms | Speedup | Size MB | Smaller |",
+            "|---|---|---:|---:|---:|---:|---:|---:|",
+        ]
+        for r in q:
+            lines.append(
+                f"| {r['name']} | {r['precision'].upper()} | {r['map5095'] * 100:.1f} | "
+                f"{r['d_map5095']:+.1f} | {_f(r['p50_ms'])} | {_f(r['speedup'], '{:.2f}x')} | "
+                f"{_f(r['size_mb'])} | {_f(r['size_ratio'], '{:.1f}x')} |"
+            )
     lines += ["", "## Charts", ""]
     titles = {
         "speed": "Accuracy versus speed",

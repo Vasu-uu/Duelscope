@@ -382,5 +382,112 @@ def export(
     console.print(f"Compare them:  duelscope run --data <data.yaml> --models {weights} {onnx_path}")
 
 
+@app.command("quant-compare")
+def quant_compare(
+    data: Path = typer.Option(..., "--data", help="Dataset used for calibration and evaluation."),
+    model: Path = typer.Option(
+        ..., "--model", help="FP32 .onnx file, or Ultralytics .pt to export."
+    ),
+    out: Path = typer.Option(Path("quant_report"), "--out", help="Output folder."),
+    split: str = typer.Option("val", help="Dataset split (YOLO)."),
+    calib: int = typer.Option(32, help="Calibration images for INT8."),
+    imgsz: int = typer.Option(640),
+    device: str = typer.Option("cpu", help="cpu | cuda | auto (INT8 QDQ is CPU-oriented)."),
+    max_images: int | None = typer.Option(None, help="Use at most N evaluation images."),
+    seed: int = typer.Option(0),
+) -> None:
+    """Build FP32/FP16/INT8 ONNX variants of one model and compare accuracy, speed and size."""
+    from duelscope.data import subset
+    from duelscope.pipeline import run_comparison
+    from duelscope.quant import make_variants, quant_insights, quantisation_table
+    from duelscope.report import build_report
+
+    try:
+        onnx_path = model
+        if model.suffix == ".pt":
+            from ultralytics import YOLO
+
+            onnx_path = Path(YOLO(str(model)).export(format="onnx", imgsz=imgsz))
+        ds = load_dataset(data, split)
+        calib_imgs = [r.path for r in subset(ds, calib, seed).records]
+        console.print(f"Building variants from {onnx_path} ...")
+        variants = make_variants(onnx_path, out / "variants", calib_imgs, imgsz)
+        cfg = build_config(
+            {
+                "data": data,
+                "split": split,
+                "models": [str(p) for p in variants.values()],
+                "out": out,
+                "imgsz": imgsz,
+                "device": device,
+                "max_images": max_images,
+                "seed": seed,
+                "cache": False,
+                "gallery": {"enabled": False},
+            }
+        )
+        with console.status("Evaluating variants ..."):
+            results = run_comparison(cfg)
+    except (DatasetError, AdapterError, ConfigError, ImportError) as exc:
+        raise fail(str(exc)) from exc
+    rows = quantisation_table(results)
+    results["quantisation"] = rows
+    results["insights"] = quant_insights(rows) + results["insights"]
+    paths = build_report(results, out)
+    console.print(_summary_table(results))
+    for line in quant_insights(rows):
+        console.print(f"  - {line}")
+    console.print(f"\n[green]Report written:[/green] {paths['html']}")
+
+
+@app.command("video-bench")
+def video_bench(
+    source: Path = typer.Option(..., "--source", help="Input video file."),
+    models: list[str] = typer.Option(..., "--models", help="Model specs to run side by side."),
+    out: Path = typer.Option(Path("video_report"), "--out", help="Output folder."),
+    conf: float = typer.Option(0.25, help="Confidence threshold for drawing/counting."),
+    imgsz: int = typer.Option(640),
+    device: str = typer.Option("auto", help="cpu | cuda | auto."),
+    max_frames: int | None = typer.Option(None, help="Stop after N processed frames."),
+    stride: int = typer.Option(1, help="Process every Nth frame."),
+    no_video: bool = typer.Option(False, "--no-video", help="Skip writing the side-by-side video."),
+) -> None:
+    """Run several models on one video: latency, FPS, stability and a side-by-side clip."""
+    import json
+
+    from duelscope.adapters import DetectorConfig, create_detector
+    from duelscope.bench import hardware_info
+    from duelscope.video import video_benchmark
+
+    try:
+        cfg = DetectorConfig(imgsz=imgsz, conf=0.001, device=device)
+        dets = [create_detector(m, cfg) for m in models]
+        out.mkdir(parents=True, exist_ok=True)
+        res = video_benchmark(
+            dets, source, None if no_video else out / "side_by_side.mp4", conf, max_frames, stride
+        )
+    except AdapterError as exc:
+        raise fail(str(exc)) from exc
+    res["hardware"] = hardware_info()
+    (out / "video_results.json").write_text(json.dumps(res, indent=2))
+    t = Table(title=f"{res['source']}: {res['frames_processed']} frames")
+    for col in ("Model", "p50 ms", "p99 ms", "FPS", "Avg detections", "Flicker"):
+        t.add_column(col, justify="left" if col == "Model" else "right")
+    for m in res["models"]:
+        lat = m["latency_ms"]
+        t.add_row(
+            m["name"],
+            f"{lat['p50']:.1f}",
+            f"{lat['p99']:.1f}",
+            f"{m['fps']:.1f}",
+            f"{m['mean_detections']:.1f}",
+            f"{m['flicker']:.2f}",
+        )
+    console.print(t)
+    console.print("Flicker = mean change in detection count between frames (lower is steadier).")
+    if res["side_by_side"]:
+        console.print(f"[green]Side-by-side video:[/green] {res['side_by_side']}")
+
+
 if __name__ == "__main__":
     cli()
